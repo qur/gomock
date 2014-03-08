@@ -55,7 +55,11 @@
 //	- Handle different argument/return types (e.g. ..., chan, map, interface).
 package gomock
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/qur/gomock/interfaces"
+)
 
 // A TestReporter is something that can be used to report test failures.
 // It is satisfied by the standard library's *testing.T.
@@ -73,6 +77,9 @@ type Controller struct {
 	expectedCalls callSet
 }
 
+// Make sure Controller implements interfaces.MockController
+var _ interfaces.MockController = &Controller{}
+
 func NewController(t TestReporter) *Controller {
 	return &Controller{
 		t:             t,
@@ -80,7 +87,7 @@ func NewController(t TestReporter) *Controller {
 	}
 }
 
-func (ctrl *Controller) RecordCall(receiver interface{}, method string, args ...interface{}) *Call {
+func (ctrl *Controller) RecordCall(receiver interface{}, method string, args ...interface{}) interfaces.Call {
 	// TODO: check arity, types.
 	margs := make([]Matcher, len(args))
 	for i, arg := range args {

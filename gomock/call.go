@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/qur/gomock/interfaces"
 )
 
 // Call represents an expected call to a mock.
@@ -41,20 +43,23 @@ type Call struct {
 	setArgs map[int]reflect.Value
 }
 
-func (c *Call) AnyTimes() *Call {
+// Make sure Call implements interfaces.Call
+var _ interfaces.Call = &Call{}
+
+func (c *Call) AnyTimes() interfaces.Call {
 	c.minCalls, c.maxCalls = 0, 1e8 // close enough to infinity
 	return c
 }
 
 // Do declares the action to run when the call is matched.
 // It takes an interface{} argument to support n-arity functions.
-func (c *Call) Do(f interface{}) *Call {
+func (c *Call) Do(f interface{}) interfaces.Call {
 	// TODO: Check arity and types here, rather than dying badly elsewhere.
 	c.doFunc = reflect.ValueOf(f)
 	return c
 }
 
-func (c *Call) Return(rets ...interface{}) *Call {
+func (c *Call) Return(rets ...interface{}) interfaces.Call {
 	mt := c.methodType()
 	if len(rets) != mt.NumOut() {
 		c.t.Fatalf("wrong number of arguments to Return for %T.%v: got %d, want %d",
@@ -88,14 +93,14 @@ func (c *Call) Return(rets ...interface{}) *Call {
 	return c
 }
 
-func (c *Call) Times(n int) *Call {
+func (c *Call) Times(n int) interfaces.Call {
 	c.minCalls, c.maxCalls = n, n
 	return c
 }
 
 // SetArg declares an action that will set the nth argument's value,
 // indirected through a pointer.
-func (c *Call) SetArg(n int, value interface{}) *Call {
+func (c *Call) SetArg(n int, value interface{}) interfaces.Call {
 	if c.setArgs == nil {
 		c.setArgs = make(map[int]reflect.Value)
 	}
@@ -134,8 +139,9 @@ func (c *Call) isPreReq(other *Call) bool {
 }
 
 // After declares that the call may only match after preReq has been exhausted.
-func (c *Call) After(preReq *Call) *Call {
-	if preReq.isPreReq(c) {
+func (c *Call) After(preReq interfaces.Call) interfaces.Call {
+	aPreReq := preReq.(*Call)
+	if aPreReq.isPreReq(c) {
 		msg := fmt.Sprintf(
 			"Loop in call order: %v is a prerequisite to %v (possibly indirectly).",
 			c, preReq,
@@ -143,7 +149,7 @@ func (c *Call) After(preReq *Call) *Call {
 		panic(msg)
 	}
 
-	c.preReqs = append(c.preReqs, preReq)
+	c.preReqs = append(c.preReqs, aPreReq)
 	return c
 }
 
@@ -240,7 +246,7 @@ func (c *Call) methodType() reflect.Type {
 }
 
 // InOrder declares that the given calls should occur in order.
-func InOrder(calls ...*Call) {
+func InOrder(calls ...interfaces.Call) {
 	for i := 1; i < len(calls); i++ {
 		calls[i].After(calls[i-1])
 	}
